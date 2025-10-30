@@ -62,7 +62,13 @@ backend/
 
 ## Configuración
 
-Crear un archivo `.env` basado en `env.model`:
+Crear el archivo de entorno a partir del ejemplo:
+
+```bash
+cp .env.example .env
+```
+
+Variables disponibles (placeholders en `.env.example`):
 
 ```env
 PORT=3000
@@ -106,21 +112,32 @@ npm start          # Producción
 ```javascript
 {
   name: String,
+  calificacion: Number,            // 0..5 (default 0)
+  opiniones: Number,               // >= 0 (default 0)
   description: String,
-  price: Number,
-  category: ObjectId, // ref: Category
-  colores: [{ name: String, cantidad: Number, stock: Number }],
-  talles: [String],
-  imageUrl: String,
-  stock: Boolean
+  stock: Boolean,                  // default: true
+  descuento: Number,               // 0..100 (default 0)
+  precio_actual: Number,           // requerido
+  precio_original: Number,         // requerido
+  talles: ["XS","S","M","L","XL","XXL"],
+  estado: "Activo" | "Inactivo", // default: "Activo"
+  especificaciones: {
+    material: String,
+    peso: String,
+    fabricado_en: String
+  },
+  category: ObjectId,              // ref: Category, requerido
+  colores: [{ name: String, stock: Number }],
+  ingreso: "nuevo" | "viejo",     // default: "nuevo"
+  imageUrl: String | null          // URL S3 válida o null
 }
 ```
 
 ### Category
 ```javascript
 {
-  nombre: String, // único
-  description: String
+  nombre: String,     // único
+  descripcion: String
 }
 ```
 
@@ -132,23 +149,23 @@ Prefijo base: `/api`
 - POST `/createUser` — Crear usuario
 - GET `/getUsers` — Listar usuarios
 - POST `/logIn` — Inicio de sesión (JWT)
-- PUT `/update/:id` — Actualizar usuario
+- PATCH `/update/:id` — Actualizar usuario
 - GET `/getRol/:id` — Obtener rol
 
 ### Productos (`/api/products`)
 - GET `/getAllProducts` — Listar productos
 - GET `/getProduct/:id` — Obtener producto por ID
-- POST `/createProduct` — Crear producto
-- PUT `/updateProduct/:id` — Actualizar producto
+- POST `/createProducts` — Crear múltiples productos
+- PATCH `/updateProduct/:id` — Actualizar producto
 - DELETE `/deleteProduct/:id` — Eliminar producto
-- GET `/:id/colors` — Colores por producto
-- GET `/:id/sizes` — Talles por producto
+- GET `/getAllColors/:id` — Colores del producto
+- GET `/getAllSizes/:id` — Talles del producto
 
 ### Categorías (`/api/categories`)
-- GET `/` — Listar categorías
-- GET `/:id` — Obtener categoría
-- POST `/` — Crear categoría
-- POST `/bulk` — Crear múltiples categorías
+- GET `/getCategories` — Listar categorías
+- GET `/getCategory/:id` — Obtener categoría
+- POST `/createCategory` — Crear categoría
+- POST `/createCategories` — Crear múltiples categorías
 
 ### Email (`/api/email`)
 - POST `/send-confirmation` — Enviar confirmación de orden por email
@@ -166,8 +183,174 @@ Prefijo base: `/api`
 - UI: `GET /api-docs`
 - Incluye especificaciones generadas por `swagger-jsdoc` a partir de anotaciones JSDoc en rutas (p. ej., `src/routes/emailRoute.js`).
 
+## Ejemplos de Datos Mock (JSON)
+
+### Usuarios
+
+Solicitud: crear usuario (`POST /api/users/createUser`)
+```json
+{
+  "nombre": "Laura Pérez",
+  "email": "laura@example.com",
+  "password": "Secreta123!",
+  "rol": "user"
+}
+```
+
+Solicitud: login (`POST /api/users/logIn`)
+```json
+{
+  "email": "laura@example.com",
+  "password": "Secreta123!"
+}
+```
+
+Solicitud: actualizar usuario (`PATCH /api/users/update/665fa2e9c5a2f0a9b4f0d1a1`)
+```json
+{
+  "nombre": "Laura P.",
+  "rol": "admin",
+  "activo": true
+}
+```
+
+Respuesta (ejemplo genérico)
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "665fa2e9c5a2f0a9b4f0d1a1",
+    "nombre": "Laura Pérez",
+    "email": "laura@example.com",
+    "rol": "user",
+    "activo": true
+  }
+}
+```
+
+### Categorías
+
+Solicitud: crear categoría (`POST /api/categories/createCategory`)
+```json
+{
+  "nombre": "Zapatillas",
+  "description": "Calzado deportivo"
+}
+```
+
+Solicitud: crear múltiples categorías (`POST /api/categories/createCategories`)
+```json
+[
+  { "nombre": "Remeras", "description": "Prendas superiores" },
+  { "nombre": "Pantalones", "description": "Prendas inferiores" },
+  { "nombre": "Accesorios", "description": "Gorros, medias, etc." }
+]
+```
+
+### Productos
+
+Solicitud: crear múltiples productos (`POST /api/products/createProducts`)
+```json
+{
+  "products": [
+    {
+      "name": "Zapatilla Runner Pro",
+      "description": "Zapatilla liviana para running",
+      "precio_actual": 79999.99,
+      "precio_original": 99999.99,
+      "category": "6775f2e8c5a2f0a9b4f0d1a1",
+      "talles": ["M", "L"],
+      "colores": [
+        { "name": "Negro", "stock": 10 },
+        { "name": "Blanco", "stock": 5 }
+      ],
+      "especificaciones": { "material": "Sintético", "peso": "250g", "fabricado_en": "AR" },
+      "estado": "Activo",
+      "ingreso": "nuevo",
+      "imageUrl": "https://s3.amazonaws.com/mi-bucket/products/runner-pro.jpg"
+    }
+  ]
+}
+```
+
+Solicitud: actualizar producto (`PUT /api/products/updateProduct/665fa3f0c5a2f0a9b4f0d1b2`)
+```json
+{
+  "price": 74999.99,
+  "stock": true,
+  "colores": [
+    { "name": "Rojo", "cantidad": 3, "stock": 3 }
+  ]
+}
+```
+
+Respuesta: colores por producto (`GET /api/products/:id/colors`)
+```json
+[
+  { "name": "Negro", "cantidad": 10, "stock": 10 },
+  { "name": "Blanco", "cantidad": 5, "stock": 5 }
+]
+```
+
+Respuesta: talles por producto (`GET /api/products/:id/sizes`)
+```json
+["39", "40", "41", "42"]
+```
+
+### Email
+
+Solicitud: enviar confirmación de pedido (`POST /api/email/send-confirmation`)
+```json
+{
+  "nombre": "Laura Pérez",
+  "email": "laura@example.com",
+  "telefono": "+54 9 11 5555-5555",
+  "direccion": "Av. Siempre Viva 742",
+  "ciudad": "Buenos Aires",
+  "codigoPostal": "1000",
+  "items": [
+    { "name": "Zapatilla Runner Pro", "color": "Negro", "quantity": 2, "precio_actual": 79999.99 },
+    { "name": "Remera Tech", "color": "Azul", "quantity": 1, "precio_actual": 19999.99 }
+  ],
+  "total": 179999.97
+}
+```
+
+Respuesta (exitosa)
+```json
+{
+  "success": true,
+  "message": "Orden recibida correctamente",
+  "orderNumber": "123456"
+}
+```
+
+Respuesta (error de validación)
+```json
+{
+  "success": false,
+  "message": "Todos los campos son requeridos"
+}
+```
+
+### Imágenes (servicio interno)
+
+Entrada: eliminar imagen de S3
+```json
+{
+  "imageUrl": "https://s3.amazonaws.com/mi-bucket/products/runner-pro.jpg"
+}
+```
+
+Entrada: generar URL firmada
+```json
+{
+  "imageUrl": "https://s3.amazonaws.com/mi-bucket/products/runner-pro.jpg",
+  "expiresIn": 900
+}
+```
+
 ## Notas
 
 - Archivo guardado en UTF-8 para evitar problemas de acentuación.
 - Endpoint de email aclarado: `POST /api/email/send-confirmation`.
-
